@@ -140,17 +140,29 @@
     background:linear-gradient(#6e5634,#503c1e); border:2px solid #caa75c; color:#f7eed6;
     box-shadow:0 5px 14px #0008;
   }
-  #craftArea{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  #campScene2 svg{position:absolute; inset:0; width:100%; height:100%; pointer-events:none;}
+  #campScene2 svg line{stroke:rgba(255,232,160,.85); stroke-width:2.5; stroke-dasharray:7 6;}
+  #campScene2 svg polygon{fill:rgba(255,232,160,.85);}
+  #craftArea{display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:stretch;}
   .craftRow{
-    display:flex; gap:13px; align-items:center; background:var(--panel2);
-    border:1px solid var(--line); border-radius:12px; padding:12px 14px;
+    display:flex; flex-direction:column; gap:7px; background:var(--panel2);
+    border:1.5px solid var(--line); border-radius:12px; padding:12px 14px;
   }
-  .craftRow .cIcon{font-size:34px; width:46px; text-align:center; filter:drop-shadow(0 2px 2px #0006);}
-  .craftRow .cBody{flex:1;}
+  .craftRow .cHead{display:flex; align-items:center; gap:10px;}
+  .craftRow .cIcon{font-size:29px; filter:drop-shadow(0 2px 2px #0006);}
   .craftRow .ttl{font-size:16.5px; font-weight:700;}
-  .craftRow .desc{color:var(--dim); font-size:14px; line-height:1.45;}
-  .craftRow button{white-space:nowrap;}
-  .craftRow .doneTag{color:var(--green); font-size:15px; font-weight:700; white-space:nowrap;}
+  .craftRow .desc{color:var(--dim); font-size:14px; line-height:1.45; flex:1;}
+  .craftRow .cFoot{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    margin-top:auto; padding-top:9px; border-top:1px dashed #2a4a5c;
+  }
+  .craftRow .cCost{display:flex; gap:4px; flex-wrap:wrap; align-items:center;}
+  .craftRow button{white-space:nowrap; padding:7px 16px;}
+  .craftRow .doneTag{color:var(--green); font-size:15px; font-weight:700; white-space:nowrap; margin-left:auto;}
+  .craftRow.ok{border-color:var(--gold); box-shadow:0 0 12px rgba(232,185,77,.28), inset 0 0 22px rgba(232,185,77,.06);}
+  .craftRow.ok .ttl{color:#ffe3a0;}
+  .craftRow.locked{border-color:#b14a58; opacity:.85;}
+  .craftRow.done{opacity:.7;}
   .warn{color:var(--red); font-style:normal;}
   .secH{font-size:14px; text-transform:uppercase; letter-spacing:1px; color:var(--dim); margin:16px 0 9px;}
   .secH.big{font-family:'Marcellus',serif; font-size:19px; color:var(--gold); text-transform:none; letter-spacing:1.5px; margin:20px 0 10px; border-bottom:1px solid #3a5a6c; padding-bottom:6px;}
@@ -1114,35 +1126,61 @@ function renderCamp(){
     <span class="deco" style="left:95%;top:10%;font-size:28px">🌴</span>
     <span class="deco" style="left:36%;top:84%;font-size:24px;opacity:.85">🌼</span>
     <span class="deco" style="left:62%;top:88%;font-size:22px;opacity:.85">🪨</span>`;
-  const craftRow=(icon,name,desc,cost,btnTxt,onclick,disabled,done)=>`
-    <div class="craftRow">
-      <div class="cIcon">${icon}</div>
-      <div class="cBody"><div class="ttl">${name}</div><div class="desc">${desc}</div></div>
-      ${done?'<span class="doneTag">✓ gotowe</span>':
-        `<button ${disabled?"disabled":""} onclick="${onclick}" data-tip="Koszt: ${costStr(cost)} oraz 1 PA. Płacisz z plecaka i magazynu obozu.">${btnTxt}<span class="apCost">${costStr(cost)} · 1 PA</span></button>`}
+  // strzałki zależności między budowlami (linia przerywana z grotem: wymagana → odblokowywana)
+  let arrows="";
+  for(const u of UPGRADES.filter(u=>u.req)){
+    const [fx,fy]=SLOT_POS[u.req], [tx,ty]=SLOT_POS[u.id];
+    const x1=fx*8.5, y1=fy*3.5, x2=tx*8.5, y2=ty*3.5;
+    const dx=x2-x1, dy=y2-y1, len=Math.hypot(dx,dy), ux=dx/len, uy=dy/len;
+    const ax=x1+ux*92, ay=y1+uy*92, bx=x2-ux*98, by=y2-uy*98;
+    const hx1=bx-ux*15-uy*9, hy1=by-uy*15+ux*9;
+    const hx2=bx-ux*15+uy*9, hy2=by-uy*15-ux*9;
+    arrows+=`<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}"/>`;
+    arrows+=`<polygon points="${bx},${by} ${hx1},${hy1} ${hx2},${hy2}"/>`;
+  }
+  const depSvg=`<svg viewBox="0 0 850 350" preserveAspectRatio="none">${arrows}</svg>`;
+  // karty wytwarzania: tytuł+opis u góry, materiały i przycisk w stopce;
+  // sortowanie: dostępne (podświetlone) → brak surowców → gotowe → zablokowane (czerwona ramka, na dole)
+  const costChips=cost=>Object.entries(cost).map(([k,v])=>`<span class="chip" data-tip="${RES[k][1]} — ${RES[k][2]}">${v}${RES[k][0]}</span>`).join("")
+    +`<span class="chip" data-tip="Koszt w punktach akcji">1⚡</span>`;
+  const craftRow=(icon,name,desc,cost,btnTxt,onclick,state)=>`
+    <div class="craftRow ${state}">
+      <div class="cHead"><span class="cIcon">${icon}</span><div class="ttl">${name}</div></div>
+      <div class="desc">${desc}</div>
+      <div class="cFoot">
+        ${state==="done"?'<span class="doneTag">✓ gotowe</span>':
+          `<span class="cCost">${costChips(cost)}</span>
+           <button ${state==="ok"?"":"disabled"} onclick="${onclick}" data-tip="Koszt: ${costStr(cost)} oraz 1 PA. Płacisz z plecaka i magazynu obozu.">${btnTxt}</button>`}
+      </div>
     </div>`;
-  const crafts=CRAFTS.map(c=>{
+  const RANK={ok:0, mid:1, done:2, locked:3};
+  const items=[];
+  CRAFTS.forEach(c=>{
     const locked=c.req&&!G.camp[c.req];
-    return craftRow(c.icon,c.name,c.desc+(locked?` <i class="warn">Wymaga ${REQ_NAME[c.req]}.</i>`:""),
-      c.cost,"Wytwórz",`campCraft('${c.id}')`,locked||!canDo(c.cost),false);
-  }).join("");
-  const tools=TOOLS.map(td=>{
+    const state=locked?"locked":(canDo(c.cost)?"ok":"mid");
+    items.push({state, html:craftRow(c.icon,c.name,
+      c.desc+(locked?` <i class="warn">Wymaga ${REQ_NAME[c.req]}.</i>`:""),
+      c.cost,"Wytwórz",`campCraft('${c.id}')`,state)});
+  });
+  TOOLS.forEach(td=>{
     const lv=p.tools[td.id];
-    if(lv>=2) return craftRow(td.icon,`${td.name} poz. 2`,td.descs[1],{},"","",false,true);
+    if(lv>=2){ items.push({state:"done", html:craftRow(td.icon,`${td.name} poz. 2`,td.descs[1],{},"","","done")}); return; }
     const locked=!G.camp.workbench, cost=td.costs[lv];
-    return craftRow(td.icon,lv?`${td.name}: poz. 1 → 2`:td.name,
+    const state=locked?"locked":(canDo(cost)?"ok":"mid");
+    items.push({state, html:craftRow(td.icon,lv?`${td.name}: poz. 1 → 2`:td.name,
       td.descs[lv]+(locked?' <i class="warn">Wymaga warsztatu.</i>':""),
-      cost,lv?"Ulepsz":"Wytwórz",`campTool('${td.id}')`,locked||!canDo(cost),false);
-  }).join("");
+      cost,lv?"Ulepsz":"Wytwórz",`campTool('${td.id}')`,state)});
+  });
+  items.sort((a,b)=>RANK[a.state]-RANK[b.state]);
   document.getElementById("campPanel").innerHTML=`
     <button class="closeX" onclick="closeCamp()">✕ Wróć na wyspę</button>
     <h2>🏕️ Obóz</h2>
     <p class="sub">${p.name} — ⚡ zostało ${p.ap} PA. Kliknij wolne miejsce w obozowisku, aby budować. Koszty pokrywasz z plecaka i magazynu.</p>
     <div id="campStockBar"><span class="stockTitle">📦 Magazyn obozu</span><div class="stockChips">${stockChips}</div></div>
     <div class="secH big">⛺ Obozowisko</div>
-    <div id="campScene2">${deco}${slots}</div>
+    <div id="campScene2">${depSvg}${deco}${slots}</div>
     <div class="secH big">🛠️ Wytwarzanie — ${p.name}</div>
-    <div id="craftArea">${crafts}${tools}</div>`;
+    <div id="craftArea">${items.map(i=>i.html).join("")}</div>`;
 }
 function campBuild(id){
   const b=BUILDINGS.find(x=>x.id===id), p=cp();
