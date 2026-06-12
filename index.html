@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wyspa Rozbitków — kooperacyjna ucieczka</title>
+<style>
+  :root{
+    --panel:#10222e; --panel2:#16303f; --line:#2a4a5c; --ink:#dceaf2; --dim:#8fb0c0;
+    --gold:#e8b94d; --green:#6fce7e; --red:#e2606a; --blue:#5aa7e0;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    font-family:"Segoe UI",system-ui,sans-serif; color:var(--ink);
+    background:radial-gradient(ellipse at 50% 30%, #0f3a50 0%, #0a2230 60%, #061620 100%);
+    overflow:hidden;
+  }
+  #app{display:flex; flex-direction:column; height:100%;}
+  header{
+    display:flex; align-items:center; gap:16px; padding:8px 16px;
+    background:linear-gradient(#0d2734,#0a1f2a); border-bottom:1px solid var(--line);
+  }
+  header h1{font-family:Georgia,serif; font-size:20px; color:var(--gold); letter-spacing:1px; white-space:nowrap;}
+  #dayBadge{background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:4px 10px; font-size:13px; white-space:nowrap;}
+  #eventBanner{
+    flex:1; display:flex; align-items:center; gap:8px; padding:5px 12px; border-radius:8px;
+    background:#1b3a4b; border:1px solid var(--line); font-size:13px; min-height:32px;
+    animation:fadeIn .5s;
+  }
+  @keyframes fadeIn{from{opacity:0; transform:translateY(-4px);} to{opacity:1;}}
+  main{flex:1; display:flex; min-height:0;}
+  #boardWrap{flex:1; position:relative; min-width:0;}
+  canvas{display:block; width:100%; height:100%; cursor:pointer;}
+  #tip{
+    position:absolute; pointer-events:none; background:#0c1d27ee; border:1px solid var(--line);
+    border-radius:8px; padding:6px 10px; font-size:12px; display:none; max-width:220px; z-index:5;
+    box-shadow:0 4px 14px #0008;
+  }
+  #side{
+    width:340px; flex-shrink:0; display:flex; flex-direction:column; gap:10px; padding:10px;
+    background:linear-gradient(#0d2531,#0a1d27); border-left:1px solid var(--line); overflow-y:auto;
+  }
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px;}
+  .card h3{font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--dim); margin-bottom:8px;}
+  #playersBar{display:flex; gap:6px;}
+  .pmini{
+    flex:1; border:1px solid var(--line); border-radius:8px; padding:6px; font-size:11px;
+    background:var(--panel2); text-align:center; opacity:.55; transition:.2s;
+  }
+  .pmini.active{opacity:1; box-shadow:0 0 0 2px var(--gold); }
+  .pmini .nm{font-weight:600; font-size:12px;}
+  .statRow{display:flex; align-items:center; gap:8px; margin:4px 0; font-size:13px;}
+  .statRow .lbl{width:62px; color:var(--dim); font-size:11px; text-transform:uppercase;}
+  .bar{flex:1; height:12px; background:#0a1820; border-radius:6px; overflow:hidden; border:1px solid #0006;}
+  .bar i{display:block; height:100%; border-radius:6px; transition:width .3s;}
+  .bagGrid{display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;}
+  .chip{
+    background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:2px 7px;
+    font-size:12px; white-space:nowrap;
+  }
+  .chip.zero{opacity:.3;}
+  .statusChip{background:#4a2530; border-color:#7a3545;}
+  button{
+    font-family:inherit; color:var(--ink); background:linear-gradient(#1d3d4f,#15303f);
+    border:1px solid #38617a; border-radius:8px; padding:7px 10px; font-size:13px; cursor:pointer;
+    transition:.15s; text-align:left;
+  }
+  button:hover:not(:disabled){background:linear-gradient(#27506a,#1b3e52); border-color:#4f86a8;}
+  button:disabled{opacity:.38; cursor:default;}
+  .actBtn{display:flex; justify-content:space-between; align-items:center; width:100%;}
+  .apCost{font-size:11px; color:var(--gold); background:#0a1820; border-radius:5px; padding:1px 6px; margin-left:8px;}
+  #actions{display:flex; flex-direction:column; gap:5px;}
+  #endTurnBtn{background:linear-gradient(#6a4a18,#52380f); border-color:#8a6a30; text-align:center; font-weight:600;}
+  #endTurnBtn:hover{background:linear-gradient(#7d5a20,#614414);}
+  #log{font-size:12px; line-height:1.5; max-height:170px; overflow-y:auto; color:var(--dim);}
+  #log div{padding:2px 0; border-bottom:1px dashed #1c3644;}
+  #log div:first-child{color:var(--ink);}
+  #log .day{color:var(--gold); font-weight:600;}
+  .overlay{
+    position:fixed; inset:0; background:#04111aee; z-index:20; display:flex;
+    align-items:center; justify-content:center; padding:20px;
+  }
+  .panelBig{
+    background:linear-gradient(#13303f,#0d2230); border:1px solid #3a6479; border-radius:16px;
+    padding:28px; max-width:760px; width:100%; max-height:92vh; overflow-y:auto;
+    box-shadow:0 20px 60px #000a;
+  }
+  .panelBig h2{font-family:Georgia,serif; color:var(--gold); font-size:26px; margin-bottom:6px;}
+  .panelBig p.sub{color:var(--dim); margin-bottom:16px; font-size:14px;}
+  .pickRow{display:flex; gap:12px; margin:18px 0;}
+  .pickRow button{
+    flex:1; text-align:center; font-size:16px; padding:18px 8px; border-radius:12px;
+    background:linear-gradient(#1d4258,#142f3f);
+  }
+  .pickRow button b{display:block; font-size:30px; margin-bottom:4px;}
+  .howto{font-size:13px; color:var(--dim); line-height:1.65; background:#0c2230; border:1px solid var(--line); border-radius:10px; padding:14px;}
+  .howto b{color:var(--ink);}
+  /* camp */
+  #campScene{
+    border-radius:12px; padding:14px; margin-bottom:14px;
+    background:linear-gradient(180deg,#3a5a3a 0%, #2c4a2e 55%, #5a4a32 100%);
+    border:1px solid #4a6a4a; display:flex; gap:10px; flex-wrap:wrap; min-height:86px; align-items:center;
+  }
+  .campSlot{
+    background:#0008; border:1px dashed #fff3; border-radius:10px; padding:8px 12px; font-size:13px;
+    color:#cfe0cf; text-align:center; min-width:90px;
+  }
+  .campSlot.built{border-style:solid; border-color:var(--gold); background:#0006;}
+  .campSlot .big{font-size:26px; display:block;}
+  .campGrid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .craftCard{
+    background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:10px; font-size:12px;
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .craftCard .ttl{font-size:13px; font-weight:600;}
+  .craftCard .desc{color:var(--dim); flex:1;}
+  .secH{font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--dim); margin:14px 0 8px;}
+  #campStock{display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px;}
+  .closeX{float:right; padding:4px 12px;}
+  #boatBars .statRow .lbl{width:52px;}
+  .resultEmoji{font-size:64px; text-align:center; margin:10px 0;}
+  ::-webkit-scrollbar{width:8px;}
+  ::-webkit-scrollbar-thumb{background:#2a4a5c; border-radius:4px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>⛵ Wyspa Rozbitków</h1>
+    <div id="dayBadge">Dzień 1</div>
+    <div id="eventBanner"></div>
+  </header>
+  <main>
+    <div id="boardWrap">
+      <canvas id="board"></canvas>
+      <div id="tip"></div>
+    </div>
+    <div id="side">
+      <div class="card"><h3>Rozbitkowie</h3><div id="playersBar"></div></div>
+      <div class="card" id="currentPanel"></div>
+      <div class="card"><h3>Akcje</h3><div id="actions"></div></div>
+      <div class="card"><h3>⛵ Budowa łodzi</h3><div id="boatBars"></div></div>
+      <div class="card"><h3>Dziennik</h3><div id="log"></div></div>
+    </div>
+  </main>
+</div>
+
+<div class="overlay" id="setupOv">
+  <div class="panelBig">
+    <h2>⛵ Wyspa Rozbitków</h2>
+    <p class="sub">Kooperacyjna planszówka o przetrwaniu. Rozbiliście się na dzikiej wyspie — wspólnie zbierajcie materiały, przetrwajcie jej niebezpieczeństwa i zbudujcie łódź na tyle dużą, by zabrała wszystkich do domu.</p>
+    <div class="pickRow" id="playerPick"></div>
+    <div class="howto">
+      <b>Jak grać.</b> Każdy rozbitek ma <b>Punkty Akcji (PA)</b> na turę — wydawaj je na ruch (kliknij sąsiedni heks), zbieranie, wytwarzanie i budowanie. Wyspa jest losowa w każdej rozgrywce.<br><br>
+      🪵 <b>Zbieraj</b> drewno w lasach, kamień na skałach, włókno w dżungli i na bagnach, jedzenie na łąkach. Narzędzia (siekiera, kilof, włócznia) znacznie zwiększają skuteczność — i można je ulepszać.<br>
+      🏕️ <b>Obóz</b> to wasz dom. Składaj tam materiały, a potem wejdź do obozu, by zbudować ognisko, schronienie, warsztat i ogród albo ulepszenia zwiększające maks. zdrowie i PA.<br>
+      🍎 <b>Głód</b> spada co rundę — głodując, tracisz zdrowie. Ugotowane jedzenie jest bezpieczniejsze i leczy.<br>
+      🐗 <b>Zagrożenia:</b> dziki, węże, bagienna choroba i burze. Rany i choroba kosztują cię PA, dopóki ich nie wyleczysz.<br>
+      ⛵ <b>Aby wygrać:</b> noście materiały do kotwicy, dokończcie łódź, zbierzcie tam wszystkich i odpłyńcie. <b>Jeśli którykolwiek rozbitek zginie, przegrywają wszyscy.</b> Więcej graczy = potrzebna większa łódź!<br><br>
+      ⬡ Góry, jeziora i klify są <b>nieprzekraczalne</b>. Wejście na bagna kosztuje 2 PA.
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="campOv" style="display:none">
+  <div class="panelBig" id="campPanel"></div>
+</div>
+
+<div class="overlay" id="endOv" style="display:none">
+  <div class="panelBig" id="endPanel" style="max-width:480px; text-align:center"></div>
+</div>
+
+<script>
+"use strict";
+/* ============================== DANE ============================== */
+const TILE = {
+  BEACH:   {name:"Plaża",    color:"#e6d49c", edge:"#c9b478", pass:true,  cost:1, icon:"🐚", desc:"Miękki piasek. Z włócznią możesz tu łowić ryby."},
+  CLIFF:   {name:"Klify",    color:"#7c7268", edge:"#5d554d", pass:false, icon:"🗿", desc:"Strome ściany skalne. Nie do przejścia."},
+  FOREST:  {name:"Las",      color:"#3f7d4a", edge:"#2c5e36", pass:true,  cost:1, icon:"🌲", desc:"Wysokie sosny. Zbieraj drewno — uważaj na dziki."},
+  JUNGLE:  {name:"Dżungla",  color:"#2c6b3f", edge:"#1d4f2c", pass:true,  cost:1, icon:"🌴", desc:"Gęsty gąszcz. Włókno, owoce i zioła… oraz węże."},
+  GRASS:   {name:"Łąka",     color:"#a4c26c", edge:"#82a04e", pass:true,  cost:1, icon:"🌾", desc:"Otwarte trawy. Szukaj jedzenia, poluj z włócznią."},
+  ROCK:    {name:"Skały",    color:"#9a948b", edge:"#776f64", pass:true,  cost:1, icon:"🪨", desc:"Pole głazów. Wydobywaj kamień, czasem trafi się krzemień."},
+  MOUNTAIN:{name:"Góra",     color:"#6e6a78", edge:"#514d5c", pass:false, icon:"🏔️", desc:"Strzelisty szczyt. Nie do przejścia."},
+  SWAMP:   {name:"Bagno",    color:"#6b7a4f", edge:"#4f5c38", pass:true,  cost:2, icon:"🌿", desc:"Mętne mokradła (wejście: 2 PA). Trzcina na włókno — ryzyko choroby."},
+  CAVE:    {name:"Jaskinia", color:"#5d4c40", edge:"#42352c", pass:true,  cost:1, icon:"🕳️", desc:"Ciemna jaskinia. Szukaj krzemienia. Bezpieczna w czasie burzy."},
+  LAKE:    {name:"Jezioro",  color:"#2e86ab", edge:"#1f6585", pass:false, icon:"💧", desc:"Słodka woda. Nie do przejścia — łów ryby z brzegu."},
+  CAMP:    {name:"Obóz",     color:"#d8b66e", edge:"#b08f48", pass:true,  cost:1, icon:"🏕️", desc:"Wasz obóz. Składaj tu materiały i buduj ulepszenia."},
+};
+/* Losowa plansza: pule kafelków, z których rozdawane jest wnętrze wyspy (36 heksów) */
+const INNER_POOL = [
+  ["FOREST",9],["JUNGLE",6],["GRASS",6],["ROCK",5],["MOUNTAIN",3],["SWAMP",4],["CAVE",2],["LAKE",1]
+];
+const OUTER_CLIFFS = 4; // zewnętrzny pierścień: 18 pól, 4 losowe klify, reszta plaża
+
+const RES = {
+  wood:   ["🪵","Drewno","Podstawowy budulec: łódź, budowle obozu i narzędzia. Zbieraj w lasach (więcej z siekierą)."],
+  stone:  ["🪨","Kamień","Potrzebny do ogniska, warsztatu, narzędzi i łodzi. Wydobywaj na skałach (więcej z kilofem)."],
+  fiber:  ["🌿","Włókno","Liny i wiązania: łódź, schronienie, bandaże. Z dżungli, bagien i łąk."],
+  food:   ["🍎","Surowe jedzenie","Zjedz: +3 🍗, ale 20% ryzyka choroby. Ugotuj przy ognisku, by było bezpieczne."],
+  cooked: ["🍲","Ciepły posiłek","Zjedz: +5 🍗 i +1 zdrowia, bez ryzyka choroby."],
+  herb:   ["🌱","Zioło","Składnik lekarstwa (2 zioła przy ognisku). Szukaj w dżungli."],
+  flint:  ["💎","Krzemień","Rzadki minerał do włóczni i ulepszania narzędzi. Ze skał i jaskiń."],
+  remedy: ["🧪","Lekarstwo","Wypij, aby wyleczyć chorobę (🤢)."],
+  bandage:["🩹","Bandaż","Użyj, aby opatrzyć ranę (🩸)."],
+};
+const BAG_CAP = 10;
+
+const REQ_NAME = {campfire:"ogniska", shelter:"schronienia", workbench:"warsztatu"};
+const BUILDINGS = [
+  {id:"campfire", icon:"🔥", name:"Ognisko",     cost:{wood:3,stone:2},        desc:"Gotuj posiłki i warz lekarstwa."},
+  {id:"shelter",  icon:"⛺", name:"Schronienie", cost:{wood:4,fiber:4},        desc:"Zakończ rundę w obozie: +2 zdrowia i wyleczenie choroby. Chroni obóz przed burzą."},
+  {id:"workbench",icon:"🛠️", name:"Warsztat",    cost:{wood:3,stone:2,fiber:1},desc:"Pozwala wytwarzać i ulepszać narzędzia."},
+  {id:"garden",   icon:"🌻", name:"Ogród",       cost:{wood:2,fiber:2,food:2}, desc:"Daje +1 jedzenia do magazynu co rundę."},
+];
+const CRAFTS = [
+  {id:"cook",   icon:"🍲", name:"Ciepły posiłek", req:"campfire", cost:{food:1},  gives:"cooked",  desc:"Ciepły posiłek: +5 🍗, +1 zdrowia, bez ryzyka choroby."},
+  {id:"remedy", icon:"🧪", name:"Lekarstwo",      req:"campfire", cost:{herb:2},  gives:"remedy",  desc:"Wypij, aby wyleczyć chorobę."},
+  {id:"bandage",icon:"🩹", name:"Bandaż",         req:null,       cost:{fiber:2}, gives:"bandage", desc:"Użyj, aby opatrzyć ranę."},
+];
+const TOOLS = [
+  {id:"axe",  icon:"🪓", name:"Siekiera", costs:[{wood:2,stone:1,fiber:1},{wood:1,stone:2,flint:1}],
+   descs:["+1 drewna za każde zbieranie.","+2 drewna za każde zbieranie."]},
+  {id:"pick", icon:"⛏️", name:"Kilof",    costs:[{wood:2,stone:2},{wood:1,stone:2,flint:1}],
+   descs:["+1 kamienia za każde wydobycie.","+2 kamienia za każde wydobycie."]},
+  {id:"spear",icon:"🔱", name:"Włócznia", costs:[{wood:2,fiber:1,flint:1},{wood:1,fiber:2,flint:2}],
+   descs:["Pozwala polować i łowić ryby; odpiera zwierzęta.","Lepsze łupy; zwierzęta nie mogą cię zranić."]},
+];
+const UPGRADES = [
+  {id:"hammock", icon:"🪢", name:"Hamak",    req:"shelter", cost:{wood:2,fiber:3}, desc:"+1 maks. PA dla tego rozbitka."},
+  {id:"bedroll", icon:"🛏️", name:"Posłanie", req:"shelter", cost:{fiber:3,herb:1}, desc:"+2 maks. zdrowia dla tego rozbitka."},
+];
+const EVENTS = [
+  {id:"clear",  icon:"☀️", name:"Bezchmurne niebo",  desc:"Spokojny dzień na wyspie.", w:4},
+  {id:"storm",  icon:"⛈️", name:"Burza!",            desc:"Każdy poza jaskinią (lub obozem ze schronieniem) otrzymuje 1 obrażenie.", w:2},
+  {id:"rain",   icon:"🌧️", name:"Łagodny deszcz",    desc:"Rośliny bujnie rosną. Ogród daje w tej rundzie podwójny plon.", w:2},
+  {id:"drift",  icon:"🪵", name:"Dryfujące drewno",  desc:"Przypływ wyrzuca 2 drewna do magazynu obozu.", w:2},
+  {id:"heat",   icon:"🥵", name:"Upał",              desc:"Wyczerpujący żar — w tej rundzie wszyscy głodnieją szybciej.", w:1},
+  {id:"frenzy", icon:"🐾", name:"Wzburzona zwierzyna",desc:"Zwierzęta są niespokojne — w tej rundzie szansa na spotkania jest podwojona.", w:2},
+  {id:"lucky",  icon:"🎁", name:"Szczęśliwe znalezisko", desc:"Skrzynia wyrzucona na brzeg! +1 krzemień i +1 jedzenie do magazynu.", w:2},
+  {id:"mosq",   icon:"🦟", name:"Chmara komarów",    desc:"Każdy rozbitek ryzykuje zachorowanie.", w:1},
+];
+const P_COLORS = ["#e25555","#4a90d9","#58b368","#e0a23f"];
+const P_NAMES  = ["Ada","Bartek","Cela","Darek"];
+
+/* ============================== MATEMATYKA HEKSÓW ============================== */
+const R_MAP = 4;
+const DIRS = [[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
+const key = (q,r)=>q+","+r;
+function hexRound(q,r){
+  let x=q, z=r, y=-x-z;
+  let rx=Math.round(x), ry=Math.round(y), rz=Math.round(z);
+  const dx=Math.abs(rx-x), dy=Math.abs(ry-y), dz=Math.abs(rz-z);
+  if(dx>dy && dx>dz) rx=-ry-rz; else if(dy>dz) ry=-rx-rz; else rz=-rx-ry;
+  return [rx,rz];
+}
+function ringDist(q,r){ return Math.max(Math.abs(q),Math.abs(r),Math.abs(q+r)); }
+
+/* ============================== GENEROWANIE PLANSZY ============================== */
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function genIsland(){
+  for(let attempt=0; attempt<200; attempt++){
+    const map = new Map();
+    const inner=[], outer=[];
+    for(let q=-R_MAP;q<=R_MAP;q++) for(let r=-R_MAP;r<=R_MAP;r++){
+      if(ringDist(q,r)>R_MAP) continue;
+      const d = ringDist(q,r);
+      if(d===0){ map.set(key(q,r),{q,r,type:"CAMP"}); }
+      else if(d===R_MAP) outer.push([q,r]);
+      else inner.push([q,r]);
+    }
+    // wnętrze wyspy rozdawane z puli
+    const deck=[];
+    INNER_POOL.forEach(([t,n])=>{ for(let i=0;i<n;i++) deck.push(t); });
+    shuffle(deck); shuffle(inner);
+    inner.forEach(([q,r],i)=> map.set(key(q,r),{q,r,type:deck[i]}));
+    // zewnętrzny pierścień: plaże + klify
+    shuffle(outer);
+    outer.forEach(([q,r],i)=> map.set(key(q,r),{q,r,type: i<OUTER_CLIFFS ? "CLIFF":"BEACH"}));
+    // miejsce budowy łodzi: losowa plaża
+    const beaches = outer.filter(([q,r])=>map.get(key(q,r)).type==="BEACH");
+    const [bq,br] = beaches[Math.floor(Math.random()*beaches.length)];
+    const boatKey = key(bq,br);
+    map.get(boatKey).boat = true;
+    // spójność: każde przechodnie pole osiągalne z obozu
+    const seen = new Set([key(0,0)]);
+    const stack = [[0,0]];
+    while(stack.length){
+      const [q,r]=stack.pop();
+      for(const [dq,dr] of DIRS){
+        const k = key(q+dq,r+dr);
+        const t = map.get(k);
+        if(t && TILE[t.type].pass && !seen.has(k)){ seen.add(k); stack.push([q+dq,r+dr]); }
+      }
+    }
+    let allReach = true;
+    for(const t of map.values()) if(TILE[t.type].pass && !seen.has(key(t.q,t.r))) { allReach=false; break; }
+    if(allReach) return {map, boatKey};
+  }
+  throw new Error("could not generate island");
+}
+
+/* ============================== STAN GRY ============================== */
+let G = null;
+function newGame(n){
+  const {map, boatKey} = genIsland();
+  G = {
+    day:1, map, boatKey, cur:0, over:false,
+    players: Array.from({length:n},(_,i)=>({
+      i, name:P_NAMES[i], color:P_COLORS[i],
+      hp:10, maxHp:10, ap:5, maxAp:5, hunger:8, maxHunger:10,
+      pos:"0,0", bag:{wood:0,stone:0,fiber:0,food:1,cooked:0,herb:0,flint:0,remedy:0,bandage:0},
+      tools:{axe:0,pick:0,spear:0}, sick:false, wound:false,
+      upg:{hammock:false,bedroll:false},
+    })),
+    stock:{wood:0,stone:0,fiber:0,food:2,cooked:0,herb:0,flint:1,remedy:0,bandage:0},
+    camp:{campfire:false,shelter:false,workbench:false,garden:false},
+    boat:{wood:0,fiber:0,stone:0},
+    need:{wood:10+6*n, fiber:6+3*n, stone:4+2*n},
+    event:EVENTS[0], frenzy:false, heat:false, rain:false,
+    logs:[],
+  };
+  startTurn();
+  log(`<span class="day">Dzień 1.</span> Fale wyrzucają ${n===1?"cię":"was"} na brzeg. Zbudujcie łódź przy kotwicy ⚓ i uciekajcie razem!`);
+  draw(); renderAll();
+}
+const cp = ()=>G.players[G.cur];
+const tileAt = k => G.map.get(k);
+const bagCount = p => Object.values(p.bag).reduce((a,b)=>a+b,0);
+const atCamp = p => p.pos==="0,0";
+const atBoat = p => p.pos===G.boatKey;
+
+function log(msg){ G.logs.unshift(msg); if(G.logs.length>60) G.logs.pop(); renderLog(); }
+function chance(c){ return Math.random() < (G.frenzy ? Math.min(c*2,0.95) : c); }
+
+/* -------- zasoby: najpierw plecak, potem magazyn (gdy w obozie) -------- */
+function avail(p,res){ return p.bag[res] + (atCamp(p) ? G.stock[res] : 0); }
+function canAfford(p,cost){ return Object.entries(cost).every(([k,v])=>avail(p,k)>=v); }
+function pay(p,cost){
+  for(const [k,v] of Object.entries(cost)){
+    const fromBag = Math.min(p.bag[k],v);
+    p.bag[k]-=fromBag; G.stock[k]-=(v-fromBag);
+  }
+}
+function costStr(cost){ return Object.entries(cost).map(([k,v])=>`${v}${RES[k][0]}`).join(" "); }
+function gain(p,res,n){
+  const space = BAG_CAP - bagCount(p);
+  const got = Math.min(n,space);
+  p.bag[res]+=got;
+  if(got<n) log(`🎒 ${p.name}: plecak pełny — ${n-got} ${RES[res][0]} zostaje na ziemi.`);
+  return got;
+}
+function damage(p,n,why){
+  p.hp = Math.max(0,p.hp-n);
+  log(`💔 ${p.name} otrzymuje ${n} ${n===1?"obrażenie":"obrażenia"} (${why}).`);
+  if(p.hp<=0 && !G.over) endGame(false, `${p.name} ginie (${why}). Gdy ginie jeden rozbitek, przegrywają wszyscy — wyspa was pokonała.`);
+}
+function heal(p,n){ p.hp=Math.min(p.maxHp,p.hp+n); }
+
+/* -------- zagrożenia -------- */
+function boarFight(p){
+  if(p.tools.spear>=2){ gain(p,"food",3); log(`🐗 ${p.name}: dzik szarżuje — mistrzowska włócznia powala go jednym ciosem! +3 🍎.`); }
+  else if(p.tools.spear>=1){ gain(p,"food",2); damage(p,1,"kły dzika"); log(`🐗 ${p.name} odpiera dzika włócznią. +2 🍎.`); }
+  else {
+    damage(p,2,"dziki dzik");
+    if(!p.wound && Math.random()<0.5){ p.wound=true; log(`🩸 ${p.name} odnosi ranę! (−1 PA co turę, dopóki nie opatrzysz)`); }
+  }
+}
+function snakeBite(p){
+  if(p.tools.spear>=2){ log(`🐍 ${p.name} odtrąca atakującego węża włócznią.`); return; }
+  if(Math.random()<0.5){ log(`🐍 Wąż atakuje, ale ${p.name} robi unik!`); return; }
+  damage(p,1,"ukąszenie węża");
+  if(!p.sick){ p.sick=true; log(`🤢 ${p.name}: jad krąży w żyłach… choroba! (−1 PA co turę, dopóki nie wyleczysz)`); }
+}
+
+/* ============================== AKCJE ============================== */
+function act(label,ap,fn,dis,tip){ return {label,ap,fn,dis,tip}; }
+function spendAct(a){
+  const p=cp();
+  if(p.ap<a.ap || G.over) return;
+  p.ap-=a.ap; a.fn(p);
+  draw(); renderAll();
+}
+function getActions(){
+  const p=cp(), t=tileAt(p.pos), A=[];
+  const full = bagCount(p)>=BAG_CAP;
+  const fullDis = full ? "pełny plecak" : null;
+  switch(t.type){
+    case "FOREST":
+      A.push(act(`🪵 Zbierz drewno (+${1+p.tools.axe})`,1,pl=>{
+        const got=gain(pl,"wood",1+pl.tools.axe);
+        log(`🪵 ${pl.name} rąbie drewno. +${got} 🪵.`);
+        if(chance(0.15)) boarFight(pl);
+      },fullDis,"Zbierasz drewno do plecaka (siekiera zwiększa zbiór). Uwaga: 15% szans na atak dzika."));
+      break;
+    case "ROCK":
+      A.push(act(`🪨 Wydobądź kamień (+${1+p.tools.pick})`,1,pl=>{
+        const got=gain(pl,"stone",1+pl.tools.pick);
+        log(`🪨 ${pl.name} wydobywa kamień. +${got} 🪨.`);
+        if(Math.random()<0.25 && bagCount(pl)<BAG_CAP){ gain(pl,"flint",1); log(`💎 ${pl.name} dostrzega odłamek krzemienia!`); }
+      },fullDis,"Wydobywasz kamień (kilof zwiększa urobek). 25% szans na dodatkowy krzemień."));
+      break;
+    case "JUNGLE":
+      A.push(act("🌿 Zetnij włókno (+1–2)",1,pl=>{
+        const got=gain(pl,"fiber",1+(Math.random()<0.5?1:0));
+        log(`🌿 ${pl.name} ścina pnącza. +${got} 🌿.`);
+        if(chance(0.15)) snakeBite(pl);
+      },fullDis,"Ścinasz pnącza: 1–2 włókna. Uwaga: 15% szans na węża."));
+      A.push(act("🍎 Szukaj owoców i ziół",1,pl=>{
+        let s=[];
+        if(Math.random()<0.6 && gain(pl,"food",1)) s.push("+1 🍎");
+        if(Math.random()<0.5 && gain(pl,"herb",1)) s.push("+1 🌱");
+        log(`🌴 ${pl.name} przeszukuje dżunglę. ${s.length?s.join(", "):"Tym razem nic."}`);
+        if(chance(0.15)) snakeBite(pl);
+      },fullDis,"60% szans na owoce 🍎 i 50% na zioło 🌱 (do lekarstw). Uwaga: 15% szans na węża."));
+      break;
+    case "GRASS":
+      A.push(act("🍎 Szukaj jedzenia",1,pl=>{
+        let s=["+1 🍎"]; gain(pl,"food",1);
+        if(Math.random()<0.3 && bagCount(pl)<BAG_CAP){ gain(pl,"fiber",1); s.push("+1 🌿"); }
+        log(`🌾 ${pl.name} przeszukuje łąkę. ${s.join(", ")}.`);
+        if(chance(0.10)) boarFight(pl);
+      },fullDis,"+1 jedzenie, 30% szans na dodatkowe włókno. Uwaga: 10% szans na dzika."));
+      break;
+    case "SWAMP":
+      A.push(act("🌿 Zbierz trzcinę (+2 włókna)",1,pl=>{
+        const got=gain(pl,"fiber",2);
+        log(`🌿 ${pl.name} wyrywa trzcinę z mułu. +${got} 🌿.`);
+        if(chance(0.2) && !pl.sick){ pl.sick=true; log(`🤢 ${pl.name} łapie chorobę po brodzeniu w bagnie!`); }
+      },fullDis,"+2 włókna z trzciny. Uwaga: 20% ryzyka choroby (−1 PA co turę)."));
+      break;
+    case "CAVE":
+      A.push(act("🔦 Przeszukaj jaskinię",1,pl=>{
+        if(Math.random()<0.6){ gain(pl,"flint",1); log(`💎 ${pl.name} znajduje krzemień lśniący w mroku.`); }
+        else { gain(pl,"stone",1); log(`🪨 ${pl.name} znajduje tylko luźne kamienie.`); }
+      },fullDis,"60% szans na krzemień 💎, w przeciwnym razie kamień. W jaskini jesteś bezpieczny podczas burzy."));
+      break;
+  }
+  // polowanie
+  if((t.type==="FOREST"||t.type==="GRASS") && p.tools.spear>=1)
+    A.push(act("🏹 Poluj",1,pl=>{
+      if(Math.random() < 0.55+0.2*(pl.tools.spear-1)){
+        const got=gain(pl,"food",pl.tools.spear>=2?3:2);
+        log(`🏹 ${pl.name}: udane polowanie! +${got} 🍎.`);
+      } else { log(`🏹 ${pl.name}: zwierzyna ucieka… i coś przedziera się przez zarośla!`); boarFight(pl); }
+    },fullDis,"Polowanie z włócznią: 55% szans (75% z włócznią poz. 2) na +2–3 jedzenia. Porażka = walka z dzikiem."));
+  // łowienie: na plaży lub przy jeziorze
+  const [pq,pr]=p.pos.split(",").map(Number);
+  const nearLake = DIRS.some(([dq,dr])=>{ const n=tileAt(key(pq+dq,pr+dr)); return n&&n.type==="LAKE"; });
+  if((t.type==="BEACH"||nearLake)){
+    A.push(act("🐟 Łów ryby",1,pl=>{
+      if(Math.random()<0.65){ const got=gain(pl,"food",pl.tools.spear>=2?2:1); log(`🐟 ${pl.name} nadziewa ${got>1?"dwie ryby":"rybę"} na włócznię! +${got} 🍎.`); }
+      else log(`🐟 Ryba wymyka się ${pl.name === "Ada" || pl.name === "Cela" ? "jej" : "mu"} z rąk.`);
+    }, p.tools.spear<1 ? "potrzebna włócznia" : fullDis,"65% szans na rybę (+1 🍎, +2 z włócznią poz. 2). Możliwe na plaży i przy jeziorze; wymaga włóczni."));
+  }
+  // akcje w obozie
+  if(atCamp(p)){
+    const carriedRes = bagCount(p);
+    A.push(act("📦 Złóż wszystko do magazynu",0,pl=>{
+      for(const k in pl.bag){ G.stock[k]+=pl.bag[k]; pl.bag[k]=0; }
+      log(`📦 ${pl.name} składa wszystko w obozie.`);
+    }, carriedRes===0 ? "pusty plecak" : null,"Przenosi całą zawartość plecaka do magazynu obozu. Z magazynu korzystacie przy budowaniu i wytwarzaniu."));
+    A.push(act("🎒 Spakuj materiały na łódź",0,pl=>{
+      let took=[];
+      for(const k of ["wood","fiber","stone"]){
+        const needLeft = G.need[k]-G.boat[k];
+        const n = Math.min(G.stock[k], Math.max(0,needLeft-pl.bag[k]), BAG_CAP-bagCount(pl));
+        if(n>0){ G.stock[k]-=n; pl.bag[k]+=n; took.push(`${n}${RES[k][0]}`); }
+      }
+      log(took.length?`🎒 ${pl.name} pakuje: ${took.join(" ")}.`:`🎒 Nie ma nic przydatnego do spakowania.`);
+    }, full ? "pełny plecak" : null,"Pakuje z magazynu materiały, których brakuje łodzi (tyle, ile zmieści plecak). Zanieś je do kotwicy ⚓."));
+    A.push(act("🏕️ Wejdź do obozu (buduj i wytwarzaj)",0,()=>openCamp(),null,"Otwiera planszę obozu: budowle, gotowanie, narzędzia i ulepszenia osobiste."));
+  }
+  // akcje przy łodzi
+  if(atBoat(p)){
+    const any = ["wood","fiber","stone"].some(k=>p.bag[k]>0 && G.boat[k]<G.need[k]);
+    A.push(act("🔨 Pracuj przy łodzi",1,pl=>{
+      let used=[];
+      for(const k of ["wood","fiber","stone"]){
+        const n=Math.min(pl.bag[k], G.need[k]-G.boat[k]);
+        if(n>0){ pl.bag[k]-=n; G.boat[k]+=n; used.push(`${n}${RES[k][0]}`); }
+      }
+      log(`🔨 ${pl.name} pracuje przy łodzi: dodano ${used.join(" ")}.`);
+      if(boatDone()) log(`⛵ <b>Łódź jest gotowa!</b> Zbierzcie wszystkich przy kotwicy i odpłyńcie!`);
+    }, any?null:"brak potrzebnych materiałów w plecaku","Wkłada w łódź wszystkie pasujące materiały z twojego plecaka."));
+    if(boatDone()){
+      const allHere = G.players.every(pl=>pl.pos===G.boatKey);
+      A.push(act("⛵ ODPŁYŃCIE — ucieczka z wyspy!",0,()=>endGame(true), allHere?null:"wszyscy muszą tu być","Zwycięstwo! Wymaga ukończonej łodzi i wszystkich rozbitków na tym polu."));
+    }
+  }
+  // jedzenie i leczenie
+  if(avail(p,"cooked")>0) A.push(act("🍲 Zjedz ciepły posiłek (+5 🍗, +1 ❤️)",0,pl=>{
+    pay(pl,{cooked:1}); pl.hunger=Math.min(pl.maxHunger,pl.hunger+5); heal(pl,1);
+    log(`🍲 ${pl.name} zjada ciepły posiłek.`);
+  }, p.hunger>=p.maxHunger?"bez głodu":null,"Darmowa akcja: +5 głodu i +1 zdrowia, bez ryzyka choroby."));
+  if(avail(p,"food")>0) A.push(act("🍎 Zjedz surowe jedzenie (+3 🍗, ryzyko)",0,pl=>{
+    pay(pl,{food:1}); pl.hunger=Math.min(pl.maxHunger,pl.hunger+3);
+    if(Math.random()<0.2 && !pl.sick){ pl.sick=true; log(`🤢 ${pl.name} je na surowo… i robi się ${pl.name === "Ada" || pl.name === "Cela" ? "jej" : "mu"} niedobrze.`); }
+    else log(`🍎 ${pl.name} je surowe jedzenie.`);
+  }, p.hunger>=p.maxHunger?"bez głodu":null,"Darmowa akcja: +3 głodu, ale 20% ryzyka choroby. Lepiej ugotować przy ognisku."));
+  if(p.sick && avail(p,"remedy")>0) A.push(act("🧪 Wypij lekarstwo (leczy chorobę)",0,pl=>{
+    pay(pl,{remedy:1}); pl.sick=false; log(`🧪 ${pl.name} wypija lekarstwo i zdrowieje!`);
+  },null,"Darmowa akcja: usuwa chorobę 🤢 i odzyskujesz pełne PA od następnej tury."));
+  if(p.wound && avail(p,"bandage")>0) A.push(act("🩹 Załóż bandaż (opatruje ranę)",0,pl=>{
+    pay(pl,{bandage:1}); pl.wound=false; log(`🩹 ${pl.name} opatruje ranę.`);
+  },null,"Darmowa akcja: usuwa ranę 🩸 i odzyskujesz pełne PA od następnej tury."));
+  A.push(act("💤 Odpocznij (+1 ❤️)",1,pl=>{ heal(pl,1); log(`💤 ${pl.name} chwilę odpoczywa.`); }, p.hp>=p.maxHp?"pełne zdrowie":null,"Odzyskujesz 1 zdrowia. W obozie ze schronieniem leczysz się też na koniec rundy."));
+  return A;
+}
+
+/* ============================== TURY I RUNDY ============================== */
+function startTurn(){
+  const p=cp();
+  let pen=(p.sick?1:0)+(p.wound?1:0);
+  p.ap=Math.max(1,p.maxAp-pen);
+  if(pen>0) log(`${p.name} zaczyna turę w osłabieniu (${p.sick?"🤢":""}${p.wound?"🩸":""} −${pen} PA).`);
+}
+function endTurn(){
+  if(G.over) return;
+  G.cur++;
+  if(G.cur>=G.players.length){ G.cur=0; endRound(); if(G.over) return; }
+  startTurn();
+  draw(); renderAll();
+}
+function endRound(){
+  // głód
+  for(const p of G.players){
+    p.hunger=Math.max(0,p.hunger-(G.heat?3:2));
+    if(p.hunger<=0){ damage(p,2,"głód"); if(G.over) return; }
+  }
+  // ogród
+  if(G.camp.garden){ const n=G.rain?2:1; G.stock.food+=n; log(`🌻 Ogród daje +${n} 🍎.`); }
+  // odpoczynek w schronieniu
+  if(G.camp.shelter){
+    for(const p of G.players) if(atCamp(p)){
+      heal(p,2); if(p.sick){p.sick=false; log(`⛺ ${p.name} wypaca chorobę w schronieniu.`);}
+    }
+  }
+  G.day++; G.heat=false; G.rain=false; G.frenzy=false;
+  // losowanie wydarzenia
+  const pool=[]; EVENTS.forEach(e=>{for(let i=0;i<e.w;i++)pool.push(e);});
+  G.event=pool[Math.floor(Math.random()*pool.length)];
+  log(`<span class="day">Dzień ${G.day}.</span> ${G.event.icon} ${G.event.name} — ${G.event.desc}`);
+  applyEvent();
+}
+function applyEvent(){
+  const e=G.event;
+  if(e.id==="storm"){
+    for(const p of G.players){
+      const t=tileAt(p.pos);
+      const safe = t.type==="CAVE" || (atCamp(p)&&G.camp.shelter);
+      if(safe) log(`⛈️ ${p.name} chroni się przed burzą.`);
+      else { damage(p,1,"burza"); if(G.over) return; }
+    }
+  }
+  else if(e.id==="drift") G.stock.wood+=2;
+  else if(e.id==="heat") G.heat=true;
+  else if(e.id==="rain") G.rain=true;
+  else if(e.id==="frenzy") G.frenzy=true;
+  else if(e.id==="lucky"){ G.stock.flint++; G.stock.food++; }
+  else if(e.id==="mosq"){
+    for(const p of G.players) if(Math.random()<0.25 && !p.sick){ p.sick=true; log(`🦟 ${p.name} jest cały w bąblach… choroba!`); }
+  }
+}
+function boatDone(){ return ["wood","fiber","stone"].every(k=>G.boat[k]>=G.need[k]); }
+function endGame(win,reason){
+  G.over=true;
+  const el=document.getElementById("endPanel");
+  if(win){
+    el.innerHTML=`<div class="resultEmoji">⛵🌅</div><h2>Uciekliście!</h2>
+      <p class="sub">Po ${G.day} ${G.day===1?"dniu":"dniach"} na wyspie łódź niesie ${G.players.length===1?"cię":"was wszystkich"} bezpiecznie ku horyzontowi. Wolność!</p>
+      <button onclick="location.reload()" style="text-align:center;width:100%;font-size:15px">Zagraj ponownie</button>`;
+  } else {
+    el.innerHTML=`<div class="resultEmoji">💀🏝️</div><h2>Wyspa zwycięża…</h2>
+      <p class="sub">${reason||""} ${G.players.length===1?"Przetrwano":"Przetrwaliście"} ${G.day} ${G.day===1?"dzień":"dni"}.</p>
+      <button onclick="location.reload()" style="text-align:center;width:100%;font-size:15px">Spróbuj jeszcze raz</button>`;
+  }
+  document.getElementById("endOv").style.display="flex";
+}
+
+/* ============================== PŁÓTNO ============================== */
+const cv=document.getElementById("board"), ctx=cv.getContext("2d");
+let S=36, OX=0, OY=0, hoverKey=null;
+function fitCanvas(){
+  const wrap=document.getElementById("boardWrap");
+  const dpr=window.devicePixelRatio||1;
+  cv.width=wrap.clientWidth*dpr; cv.height=wrap.clientHeight*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const w=wrap.clientWidth, h=wrap.clientHeight;
+  S=Math.min(w/16.8, h/15.2);
+  OX=w/2; OY=h/2;
+}
+const hexX=(q,r)=>OX+S*Math.sqrt(3)*(q+r/2);
+const hexY=(q,r)=>OY+S*1.5*r;
+function hexPath(cx,cy,s){
+  ctx.beginPath();
+  for(let i=0;i<6;i++){
+    const a=Math.PI/180*(60*i-30);
+    const x=cx+s*Math.cos(a), y=cy+s*Math.sin(a);
+    i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+  }
+  ctx.closePath();
+}
+function draw(){
+  if(!G) return;
+  const w=cv.width/(window.devicePixelRatio||1), h=cv.height/(window.devicePixelRatio||1);
+  // morze
+  const g=ctx.createRadialGradient(OX,OY,S*2,OX,OY,Math.max(w,h)*0.7);
+  g.addColorStop(0,"#1d6b8d"); g.addColorStop(0.55,"#14506b"); g.addColorStop(1,"#0a2c3d");
+  ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+  // płycizna wokół wyspy
+  hexPathIsland(S*10.2); ctx.fillStyle="#2a7f9e44"; ctx.fill();
+  hexPathIsland(S*9.4); ctx.fillStyle="#3e97b455"; ctx.fill();
+  // pola
+  const tiles=[...G.map.values()].sort((a,b)=>a.r-b.r);
+  for(const t of tiles){
+    const cx=hexX(t.q,t.r), cy=hexY(t.q,t.r), def=TILE[t.type];
+    hexPath(cx,cy+S*0.1,S*0.97); ctx.fillStyle="#00000040"; ctx.fill(); // cień
+    hexPath(cx,cy,S*0.97);
+    const tg=ctx.createLinearGradient(cx,cy-S,cx,cy+S);
+    tg.addColorStop(0,lighten(def.color,14)); tg.addColorStop(1,def.color);
+    ctx.fillStyle=tg; ctx.fill();
+    ctx.strokeStyle=def.edge; ctx.lineWidth=2; ctx.stroke();
+    if(!def.pass){ hexPath(cx,cy,S*0.97); ctx.fillStyle="#00000022"; ctx.fill(); }
+    // ikona
+    ctx.font=`${S*0.78}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText(def.icon,cx,cy+S*0.04);
+    // znacznik łodzi
+    if(t.boat){
+      ctx.font=`${S*0.5}px serif`;
+      ctx.fillText(boatDone()?"⛵":"⚓",cx,cy-S*0.52);
+    }
+  }
+  // podświetlenie ruchu
+  const p=cp();
+  if(!G.over){
+    const [pq,pr]=p.pos.split(",").map(Number);
+    for(const [dq,dr] of DIRS){
+      const t=tileAt(key(pq+dq,pr+dr));
+      if(t && TILE[t.type].pass && p.ap>=TILE[t.type].cost){
+        const cx=hexX(t.q,t.r), cy=hexY(t.q,t.r);
+        hexPath(cx,cy,S*0.82);
+        ctx.setLineDash([5,4]); ctx.strokeStyle="#ffffffbb"; ctx.lineWidth=1.6; ctx.stroke(); ctx.setLineDash([]);
+      }
+    }
+    // obwódka bieżącego pola
+    const [cq,cr2]=p.pos.split(",").map(Number);
+    hexPath(hexX(cq,cr2),hexY(cq,cr2),S*0.93);
+    ctx.strokeStyle="#e8b94d"; ctx.lineWidth=3; ctx.stroke();
+  }
+  // najechanie
+  if(hoverKey && G.map.has(hoverKey)){
+    const t=tileAt(hoverKey);
+    hexPath(hexX(t.q,t.r),hexY(t.q,t.r),S*0.97);
+    ctx.fillStyle="#ffffff18"; ctx.fill();
+  }
+  // pionki graczy
+  const byTile={};
+  G.players.forEach(pl=>{ (byTile[pl.pos]=byTile[pl.pos]||[]).push(pl); });
+  for(const [k,list] of Object.entries(byTile)){
+    const [q,r]=k.split(",").map(Number);
+    const cx=hexX(q,r), cy=hexY(q,r);
+    const offs=[[0,0],[-0.42,0.22],[0.42,0.22],[0,-0.46]];
+    list.forEach((pl,i)=>{
+      const x=cx+offs[i][0]*S, y=cy+offs[i][1]*S - S*0.28;
+      const rad=S*0.27;
+      ctx.beginPath(); ctx.arc(x,y+2,rad,0,7); ctx.fillStyle="#0007"; ctx.fill();
+      ctx.beginPath(); ctx.arc(x,y,rad,0,7);
+      ctx.fillStyle=pl.color; ctx.fill();
+      ctx.lineWidth=pl.i===G.cur?3:1.5;
+      ctx.strokeStyle=pl.i===G.cur?"#ffe9a8":"#ffffffcc"; ctx.stroke();
+      ctx.fillStyle="#fff"; ctx.font=`bold ${S*0.3}px sans-serif`;
+      ctx.fillText(pl.name[0],x,y+1);
+    });
+  }
+}
+function hexPathIsland(s){ hexPath(OX,OY+S*0.1,s); }
+function lighten(hex,amt){
+  const n=parseInt(hex.slice(1),16);
+  const r=Math.min(255,(n>>16)+amt), g=Math.min(255,((n>>8)&255)+amt), b=Math.min(255,(n&255)+amt);
+  return `rgb(${r},${g},${b})`;
+}
+
+/* obsługa wejścia */
+function evHex(e){
+  const rect=cv.getBoundingClientRect();
+  const x=e.clientX-rect.left-OX, y=e.clientY-rect.top-OY;
+  const q=(Math.sqrt(3)/3*x - y/3)/S, r=(2/3*y)/S;
+  const [rq,rr]=hexRound(q,r);
+  return key(rq,rr);
+}
+cv.addEventListener("pointermove",e=>{
+  const k=evHex(e);
+  if(k!==hoverKey){ hoverKey=k; draw(); }
+  const tip=document.getElementById("tip");
+  const t=G&&G.map.get(k);
+  if(t){
+    const def=TILE[t.type];
+    tip.style.display="block";
+    tip.innerHTML=`<b>${def.icon} ${t.boat?"Miejsce budowy łodzi — ":""}${def.name}</b><br>${def.desc}${def.pass?` <i style="color:var(--gold)">(wejście: ${def.cost} PA)</i>`:""}`;
+    const rect=cv.getBoundingClientRect();
+    tip.style.left=Math.min(e.clientX-rect.left+14, rect.width-230)+"px";
+    tip.style.top=(e.clientY-rect.top+14)+"px";
+  } else tip.style.display="none";
+});
+cv.addEventListener("pointerleave",()=>{ hoverKey=null; document.getElementById("tip").style.display="none"; if(G)draw(); });
+cv.addEventListener("click",e=>{
+  if(!G||G.over) return;
+  const k=evHex(e), t=G.map.get(k);
+  if(!t) return;
+  const p=cp();
+  const [pq,pr]=p.pos.split(",").map(Number);
+  const adj=DIRS.some(([dq,dr])=>key(pq+dq,pr+dr)===k);
+  if(!adj || !TILE[t.type].pass) return;
+  const cost=TILE[t.type].cost;
+  if(p.ap<cost){ log(`Za mało PA, aby tam wejść.`); renderAll(); return; }
+  p.ap-=cost; p.pos=k;
+  draw(); renderAll();
+});
+window.addEventListener("resize",()=>{ fitCanvas(); if(G)draw(); });
+
+/* ============================== INTERFEJS ============================== */
+function renderAll(){ renderHeader(); renderPlayers(); renderCurrent(); renderActions(); renderBoat(); }
+function renderHeader(){
+  document.getElementById("dayBadge").textContent=`Dzień ${G.day}`;
+  document.getElementById("eventBanner").innerHTML=
+    `<span style="font-size:18px">${G.event.icon}</span><b>${G.event.name}</b><span style="color:var(--dim)">${G.event.desc}</span>`;
+}
+function renderPlayers(){
+  document.getElementById("playersBar").innerHTML=G.players.map(p=>`
+    <div class="pmini ${p.i===G.cur?"active":""}" style="border-top:3px solid ${p.color}" title="${p.name}: ❤️ zdrowie ${p.hp}/${p.maxHp} · ⚡ punkty akcji ${p.ap}/${p.maxAp} · 🍗 głód ${p.hunger}/${p.maxHunger}${p.sick?" · 🤢 choroba":""}${p.wound?" · 🩸 rana":""}">
+      <div class="nm">${p.name}</div>
+      <div>❤️${p.hp}/${p.maxHp}</div>
+      <div>⚡${p.ap} 🍗${p.hunger}</div>
+      <div>${p.sick?"🤢":""}${p.wound?"🩸":""}&nbsp;</div>
+    </div>`).join("");
+}
+function bar(val,max,color){
+  return `<div class="bar"><i style="width:${Math.max(0,val/max*100)}%;background:${color}"></i></div>`;
+}
+function renderCurrent(){
+  const p=cp(), t=TILE[tileAt(p.pos).type];
+  const tools=TOOLS.map(td=>{
+    const lv=p.tools[td.id];
+    const tip=lv?`${td.name} poz. ${lv}: ${td.descs[lv-1]}`:`${td.name}: brak. ${td.descs[0]} Wytwórz w obozie (wymaga warsztatu).`;
+    return `<span class="chip ${lv?"":"zero"}" title="${tip}">${td.icon} ${lv?`poz. ${lv}`:"—"}</span>`;
+  }).join("");
+  const bag=Object.entries(p.bag).filter(([,v])=>v>0).map(([k,v])=>`<span class="chip" title="${RES[k][1]} — ${RES[k][2]}">${RES[k][0]}${v}</span>`).join("")||`<span class="chip zero">pusty</span>`;
+  document.getElementById("currentPanel").innerHTML=`
+    <h3 style="color:${p.color}">▶ Tura: ${p.name} <span style="color:var(--dim);float:right">${t.icon} ${t.name}</span></h3>
+    <div class="statRow" title="Gdy zdrowie spadnie do 0, rozbitek ginie — i wszyscy przegrywają. Odzyskasz je odpoczynkiem, ciepłymi posiłkami i nocą w schronieniu."><span class="lbl">Zdrowie</span>${bar(p.hp,p.maxHp,"var(--red)")}<span>${p.hp}/${p.maxHp}</span></div>
+    <div class="statRow" title="Punkty Akcji wydajesz na ruch, zbieranie, budowanie i wytwarzanie. Odnawiają się na początku twojej tury. Choroba 🤢 i rana 🩸 zabierają po 1 PA. Hamak zwiększa maksimum."><span class="lbl">Punkty akcji</span>${bar(p.ap,p.maxAp,"var(--gold)")}<span>${p.ap}/${p.maxAp}</span></div>
+    <div class="statRow" title="Głód spada o 2 na koniec każdej rundy (o 3 w upale). Gdy spadnie do 0, tracisz 2 zdrowia co rundę! Jedz surowe (+3) lub ugotowane (+5) jedzenie."><span class="lbl">Głód</span>${bar(p.hunger,p.maxHunger,"var(--green)")}<span>${p.hunger}/${p.maxHunger}</span></div>
+    <div class="statRow" title="Narzędzia: siekiera 🪓 (drewno), kilof ⛏️ (kamień), włócznia 🔱 (polowanie, łowienie, obrona). Wytwarzane i ulepszane w obozie przy warsztacie."><span class="lbl">Narzędzia</span><div>${tools}</div></div>
+    ${p.sick||p.wound?`<div class="statRow"><span class="lbl">Stan</span><div>
+      ${p.sick?'<span class="chip statusChip" title="Choroba: −1 PA co turę. Wylecz lekarstwem 🧪 (2 zioła przy ognisku) albo nocą w schronieniu w obozie.">🤢 Choroba −1 PA</span>':""}
+      ${p.wound?'<span class="chip statusChip" title="Rana: −1 PA co turę. Opatrz bandażem 🩹 (2 włókna, wytwarzany w obozie).">🩸 Rana −1 PA</span>':""}</div></div>`:""}
+    <div class="statRow" title="Plecak mieści ${BAG_CAP} przedmiotów. Nadmiar składaj w magazynie obozu — stamtąd korzystacie wszyscy przy budowaniu."><span class="lbl">Plecak ${bagCount(p)}/${BAG_CAP}</span></div>
+    <div class="bagGrid">${bag}</div>`;
+}
+function renderActions(){
+  const el=document.getElementById("actions");
+  el.innerHTML="";
+  if(G.over) return;
+  getActions().forEach(a=>{
+    const b=document.createElement("button");
+    b.className="actBtn";
+    const blocked=a.dis || (cp().ap<a.ap?"za mało PA":null);
+    b.innerHTML=`<span>${a.label}${blocked&&a.dis?` <i style="color:var(--dim);font-size:11px">(${a.dis})</i>`:""}</span><span class="apCost">${a.ap} PA</span>`;
+    b.disabled=!!blocked;
+    if(a.tip) b.title=a.tip + (a.ap?` Koszt: ${a.ap} PA.`:"");
+    b.onclick=()=>spendAct(a);
+    el.appendChild(b);
+  });
+  const et=document.createElement("button");
+  et.id="endTurnBtn"; et.textContent=`✔ Zakończ turę (${cp().name})`;
+  et.title="Przekazuje turę następnemu rozbitkowi. Po ostatnim graczu kończy się runda: głód spada o 2, ogród daje plon, schronienie leczy, a nowy dzień przynosi losowe wydarzenie.";
+  et.onclick=endTurn;
+  el.appendChild(et);
+}
+function renderBoat(){
+  const rows=["wood","fiber","stone"].map(k=>`
+    <div class="statRow" title="${RES[k][1]}: dostarczono ${G.boat[k]} z ${G.need[k]} potrzebnych. ${RES[k][2]}"><span class="lbl">${RES[k][0]} ${RES[k][1]}</span>
+    ${bar(G.boat[k],G.need[k],"var(--blue)")}<span>${G.boat[k]}/${G.need[k]}</span></div>`).join("");
+  document.getElementById("boatBars").innerHTML=rows+
+    (boatDone()?`<div style="color:var(--green);font-size:13px;margin-top:4px">✅ Łódź gotowa — zbierzcie wszystkich przy ⚓ i odpłyńcie!</div>`:
+    `<div style="color:var(--dim);font-size:11px;margin-top:4px">Noś materiały w plecaku do kotwicy ⚓ i wybierz „Pracuj przy łodzi”.</div>`);
+}
+function renderLog(){
+  if(!G) return;
+  document.getElementById("log").innerHTML=G.logs.map(m=>`<div>${m}</div>`).join("");
+}
+
+/* ============================== PLANSZA OBOZU ============================== */
+function openCamp(){ document.getElementById("campOv").style.display="flex"; renderCamp(); }
+function closeCamp(){ document.getElementById("campOv").style.display="none"; draw(); renderAll(); }
+function campCard({icon,name,desc,cost,btn,onclick,disabled,done}){
+  return `<div class="craftCard">
+    <div class="ttl">${icon} ${name} ${done?'<span style="color:var(--green)">✓</span>':""}</div>
+    <div class="desc">${desc}</div>
+    ${done?"":`<button ${disabled?"disabled":""} onclick="${onclick}" style="text-align:center" title="Koszt: ${Object.entries(cost).map(([k,v])=>v+" × "+RES[k][1].toLowerCase()).join(", ")} oraz 1 PA. Płacisz z plecaka i magazynu obozu.">${btn} <span class="apCost">${costStr(cost)} · 1 PA</span></button>`}
+  </div>`;
+}
+function renderCamp(){
+  const p=cp();
+  const stock=Object.entries(G.stock).filter(([,v])=>v>0).map(([k,v])=>`<span class="chip" title="${RES[k][1]} — ${RES[k][2]}">${RES[k][0]} ${RES[k][1]}: ${v}</span>`).join("")||'<span class="chip zero">pusto</span>';
+  const slots=BUILDINGS.map(b=>`
+    <div class="campSlot ${G.camp[b.id]?"built":""}">
+      <span class="big">${G.camp[b.id]?b.icon:"⬚"}</span>${b.name}
+    </div>`).join("");
+  const canDo=cost=>canAfford(p,cost)&&p.ap>=1&&!G.over;
+  const builds=BUILDINGS.filter(b=>!G.camp[b.id]).map(b=>campCard({
+    ...b, btn:"Zbuduj", disabled:!canDo(b.cost), onclick:`campBuild('${b.id}')`
+  })).join("");
+  const crafts=CRAFTS.map(c=>{
+    const locked=c.req&&!G.camp[c.req];
+    return campCard({...c, btn:"Wytwórz",
+      desc:c.desc+(locked?` <i style="color:var(--red)">Wymaga ${REQ_NAME[c.req]}.</i>`:""),
+      disabled:locked||!canDo(c.cost), onclick:`campCraft('${c.id}')`});
+  }).join("");
+  const tools=TOOLS.map(td=>{
+    const lv=p.tools[td.id];
+    if(lv>=2) return campCard({icon:td.icon,name:`${td.name} poz. 2`,desc:td.descs[1],done:true,cost:{}});
+    const locked=!G.camp.workbench;
+    const cost=td.costs[lv];
+    return campCard({icon:td.icon, name:`${td.name} ${lv?"poz. 1 → 2":""}`,
+      desc:td.descs[lv]+(locked?' <i style="color:var(--red)">Wymaga warsztatu.</i>':""),
+      cost, btn:lv?"Ulepsz":"Wytwórz", disabled:locked||!canDo(cost), onclick:`campTool('${td.id}')`});
+  }).join("");
+  const upgs=UPGRADES.map(u=>{
+    if(p.upg[u.id]) return campCard({icon:u.icon,name:u.name,desc:u.desc,done:true,cost:{}});
+    const locked=u.req&&!G.camp[u.req];
+    return campCard({...u, name:`${u.name} (${p.name})`,
+      desc:u.desc+(locked?` <i style="color:var(--red)">Wymaga ${REQ_NAME[u.req]}.</i>`:""),
+      btn:"Zbuduj", disabled:locked||!canDo(u.cost), onclick:`campUpg('${u.id}')`});
+  }).join("");
+  document.getElementById("campPanel").innerHTML=`
+    <button class="closeX" onclick="closeCamp()">✕ Wróć na wyspę</button>
+    <h2>🏕️ Obóz</h2>
+    <p class="sub">${p.name} — ⚡ zostało ${p.ap} PA. Koszty są pokrywane z plecaka i magazynu obozu.</p>
+    <div id="campScene">${slots}</div>
+    <div class="secH">📦 Magazyn obozu</div><div id="campStock">${stock}</div>
+    ${builds?`<div class="secH">🏗️ Budowle (po 1 PA)</div><div class="campGrid">${builds}</div>`:""}
+    <div class="secH">🍳 Wytwarzanie (po 1 PA)</div><div class="campGrid">${crafts}</div>
+    <div class="secH">🛠️ Narzędzia — ${p.name} (po 1 PA)</div><div class="campGrid">${tools}</div>
+    <div class="secH">✨ Ulepszenia osobiste — ${p.name} (po 1 PA)</div><div class="campGrid">${upgs}</div>`;
+}
+function campBuild(id){
+  const b=BUILDINGS.find(x=>x.id===id), p=cp();
+  if(!canAfford(p,b.cost)||p.ap<1) return;
+  pay(p,b.cost); p.ap--; G.camp[id]=true;
+  log(`${b.icon} ${p.name} buduje: ${b.name}!`);
+  renderCamp(); renderAll();
+}
+function campCraft(id){
+  const c=CRAFTS.find(x=>x.id===id), p=cp();
+  if(!canAfford(p,c.cost)||p.ap<1) return;
+  pay(p,c.cost); p.ap--;
+  if(bagCount(p)<BAG_CAP) p.bag[c.gives]++; else G.stock[c.gives]++;
+  log(`${c.icon} ${p.name} wytwarza: ${c.name.toLowerCase()}.`);
+  renderCamp(); renderAll();
+}
+function campTool(id){
+  const td=TOOLS.find(x=>x.id===id), p=cp();
+  const lv=p.tools[id];
+  if(lv>=2) return;
+  const cost=td.costs[lv];
+  if(!canAfford(p,cost)||p.ap<1) return;
+  pay(p,cost); p.ap--; p.tools[id]=lv+1;
+  log(`${td.icon} ${p.name} ${lv?"ulepsza":"wytwarza"} narzędzie: ${td.name}${lv?" poz. 2":""}!`);
+  renderCamp(); renderAll();
+}
+function campUpg(id){
+  const u=UPGRADES.find(x=>x.id===id), p=cp();
+  if(!canAfford(p,u.cost)||p.ap<1||p.upg[id]) return;
+  pay(p,u.cost); p.ap--; p.upg[id]=true;
+  if(id==="hammock"){ p.maxAp++; log(`🪢 ${p.name} rozwiesza hamak: +1 maks. PA!`); }
+  if(id==="bedroll"){ p.maxHp+=2; p.hp+=2; log(`🛏️ ${p.name} przygotowuje posłanie: +2 maks. zdrowia!`); }
+  renderCamp(); renderAll();
+}
+
+/* ============================== START ============================== */
+const pick=document.getElementById("playerPick");
+[1,2,3,4].forEach(n=>{
+  const b=document.createElement("button");
+  b.innerHTML=`<b>${"🧍".repeat(n)}</b>${n} ${n===1?"gracz":"graczy"}<div style="font-size:11px;color:var(--dim);margin-top:4px">łódź: ${10+6*n}🪵 ${6+3*n}🌿 ${4+2*n}🪨</div>`;
+  b.onclick=()=>{
+    document.getElementById("setupOv").style.display="none";
+    fitCanvas(); newGame(n);
+  };
+  pick.appendChild(b);
+});
+fitCanvas();
+</script>
+</body>
+</html>
